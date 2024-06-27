@@ -9,7 +9,10 @@ int main(int argc, char **argv) {
         return 0;
     } 
 
-    auto sigma50 = kromek::
+    Kromek sigma50(8155);
+    Kromek gr1(1819);
+
+
 
 
     return 0;
