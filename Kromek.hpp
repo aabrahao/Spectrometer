@@ -1,102 +1,67 @@
-#include "SpectrometerDriver.h"
+#ifndef __AA_KROMEK_HPP__
+#define __AA_KROMEK_HPP__
 
-Kromek::Kromek(int id) :
-    m_id(id) {
-    kr_SetDeviceChangedCallback(krDeviceChangedCallback, this);
-    kr_Initialise(krErrorCallback, this);
-}
+#include <map>
+#include <iostream>
+#include <string_view>
+#include <vector>
+#include <memory>
 
-std::string Kromek::version() const {
-    int productVer, majVer, minVer, buildVer;
-    kr_GetVersionInformation(&productVer, &majVer, &minVer, &buildVer);
+namespace Kromek {
 
-    return productVer
-}
+class Sensor {
+public:
+    Sensor(unsigned id);
+    ~Sensor();
+    // Acquisition
+    bool aquiring() const;
+    void start();
+    void stop();
+    void clear();
+    // Data
+    unsigned counts();
+    std::vector<unsigned> spectrum();
+    unsigned realtime();
+    unsigned livetime();
+    // Info
+    unsigned id() const { return m_id; }
+    int serial() const { return m_serial; }
+    std::string name() const;
+    std::string manufacturer() const;
+    int vendor() const;
+    int product() const;
+    std::string info() const;
+protected:
+    void populate();
+private:
+    unsigned m_id;
+    unsigned m_serial;
+    // Acquistion
+    unsigned m_realtime;
+    unsigned m_livetime;
+};
 
-Kromek::~Kromek() {
-    kr_Destruct();
-}
-
-bool Kromek::aquiring() const {
-    return kr_IsAcquiringData(deviceID);
-}
-
-void Kromek::start() {
-    unsigned int deviceID = GetSelectedDeviceID();
-    if (deviceID == 0)
-        return;
-    if (aquiring())
-        stop();
-    int okay = kr_BeginDataAcquisition(m_id, m_realTime * 1000, m_liveTime * 1000);
-    if ( okay != ERROR_OK)
-        std::out << "Ops, Error unable to read from device");
-    update();
-}
-
-void Kromek::stop() {
-    unsigned int deviceID = GetSelectedDeviceID();
-    if (deviceID == 0)
-        return;
-    kr_StopDataAcquisition(deviceID);
-}
-
-void Kromek::clear() {
-    unsigned int deviceID = GetSelectedDeviceID();
-    if (deviceID == 0)
-        return;
-    kr_ClearAcquiredData(deviceID);
-}
-
-void Kromek::errorCallback(int /*deviceID*/, int code, std::string errorMsg) {
-    std::string msg;
-    switch (code) {
-        case ERROR_NOT_INITIALISED:
-            msg = "Library not initialised";
-            break;
-        case ERROR_ACQUISITION_COMPLETE:
-            msg = "Acquisition Completed";
-            update();
-            break;
-        default:
-            msg = errorMsg;
-    }
-    return msg;
-}
-
-void Kromek::deviceChangedCallback(unsigned int /*detectorID*/, BOOL /*added*/, void *pCallbackObject) {
+class Driver {
+public:
+    using Sensors = std::map<unsigned, std::shared_ptr<Sensor>>;
+    explicit Driver();
+    ~Driver();
+    std::string version() const;
+    // Sensors
+    std::shared_ptr<Sensor> sensor(unsigned serial);
+    const std::shared_ptr<Sensor> sensor(unsigned serial) const { return sensor(serial); }
+    Sensors &sensors() { return s_sensors; }
+    const Sensors &sensors() const { return s_sensors; }
+protected:
+    static void addSensor(unsigned id);
+    static void removeSensor(unsigned id);
+    static void deviceChangedCallback(unsigned id, int added, void *caller);
+    static void errorCallback(void *caller, unsigned id, int code, const char *message);
+private:
+    // Devices
+    static Sensors s_sensors; // {serial, sensor}
+};
 
 }
 
-void Kromek::updateDetectorList() {
-    // Enumerate each of the attached detectors
-    unsigned int detectorID = 0;
-    while ((detectorID = kr_GetNextDetector(detectorID)) != 0) {
-        const unsigned int cNumberOfCharacters = 126;  // max number of characters for a USB product.
-        // Retrieve individual details about the device
-        char deviceName[cNumberOfCharacters];
-        int bytesOut;
-        kr_GetDeviceName(detectorID, deviceName, cNumberOfCharacters, &bytesOut);
-        char manufacturer[cNumberOfCharacters];
-        kr_GetDeviceManufacturer(detectorID, manufacturer, cNumberOfCharacters, &bytesOut);
-        char serialNumber[cNumberOfCharacters];
-        kr_GetDeviceSerial(detectorID, serialNumber, cNumberOfCharacters, &bytesOut);
-        int vendorID, productID;
-        kr_GetDeviceVendorID(detectorID, &vendorID);
-        kr_GetDeviceProductID(detectorID, &productID);
-    }
-}
-
-// Update the display of the currently selected detectors acquisition data
-void Kromek::update() {
-    unsigned int totalCounts = 0;
-    unsigned int realTime = 0;
-    unsigned int liveTime  = 0;
-
-    std::vector<unsigned int> spectrumData(TOTAL_RESULT_CHANNELS);
-
-    unsigned int deviceID = GetSelectedDeviceID();
-    if (deviceID == 0)
-        return;
-
-    kr_GetAcquiredData(deviceID, spectrumData.data(), &totalCounts, &realTime, &liveTime);
-}
+#endif
