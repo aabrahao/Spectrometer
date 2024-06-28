@@ -17,7 +17,10 @@ unsigned fromId(unsigned id) {
 // Sensor
 
 Kromek::Sensor::Sensor(unsigned id) 
-: m_id(id), m_serial(fromId(id)) {
+: m_id(id), 
+  m_serial(fromId(id)),
+  m_realtime(0),
+  m_livetime(0) {
     log() << "Kromek: Sensor " << info() << " connected!" << std::endl;
 }
 
@@ -29,9 +32,11 @@ bool Kromek::Sensor::aquiring() const {
     return kr_IsAcquiringData(m_id); 
 }
 
-void Kromek::Sensor::start() {
+void Kromek::Sensor::start(bool accumulate) {
     if (aquiring())
         stop();
+    if (!accumulate)
+        clear();
     auto okay = kr_BeginDataAcquisition(m_id, m_realtime*1000, m_livetime*1000);
     if ( okay != ERROR_OK)
         log() << "Kromek error: Ops, unable to read from device";
@@ -45,28 +50,39 @@ void Kromek::Sensor::clear() {
     kr_ClearAcquiredData(m_id);
 }
 
-unsigned Kromek::Sensor::counts() {
+std::tuple<unsigned, Kromek::Sensor::Spectrum> Kromek::Sensor::data() const {
+    Spectrum spectrum(channels());
+    unsigned counts = 0;
+    kr_GetAcquiredData(m_id, spectrum.data(), &counts, nullptr, nullptr);
+    return {counts, spectrum};
+}
+
+unsigned Kromek::Sensor::counts() const {
     unsigned counts = 0;
     kr_GetAcquiredData(m_id, nullptr, &counts, nullptr, nullptr);
     return counts;
 }
 
-std::vector<unsigned> Kromek::Sensor::spectrum() {
-    std::vector<unsigned> spectrum(TOTAL_RESULT_CHANNELS);
+Kromek::Sensor::Spectrum Kromek::Sensor::spectrum() const {
+    Spectrum spectrum(channels());
     kr_GetAcquiredData(m_id, spectrum.data(), nullptr, nullptr, nullptr);
     return spectrum;
 }
 
-unsigned Kromek::Sensor::realtime() {
+unsigned Kromek::Sensor::realtime() const {
     unsigned time = 0;
     kr_GetAcquiredData(m_id, nullptr, nullptr, &time, nullptr);
     return time;
 }
 
-unsigned Kromek::Sensor::livetime() {
+unsigned Kromek::Sensor::livetime() const {
     unsigned time = 0;
     kr_GetAcquiredData(m_id, nullptr, nullptr, nullptr, &time);
     return time;
+}
+
+unsigned Kromek::Sensor::channels() const {
+    return TOTAL_RESULT_CHANNELS;
 }
 
 std::string Kromek::Sensor::name() const {
@@ -100,7 +116,7 @@ std::string Kromek::Sensor::info() const {
 //////////////////////////////////////////////////////////////
 // Driver
 
-Kromek::Driver::Sensors Kromek::Driver::s_sensors;
+Kromek::Driver::Devices Kromek::Driver::s_devices;
 
 Kromek::Driver::Driver() {
     log() << "Opening Kromek driver, version " + version() << std::endl;
@@ -109,7 +125,7 @@ Kromek::Driver::Driver() {
 }
 
 Kromek::Driver::~Driver() {
-    s_sensors.clear();
+    clearDevices();
     kr_Destruct();
     log() << "Closing kromek driver." << std::endl;
 }
@@ -120,27 +136,37 @@ std::string Kromek::Driver::version() const {
     return std::format("{}-{}.{}.{}", product, major, minor, build);
 }
 
-std::shared_ptr<Kromek::Sensor> Kromek::Driver::sensor(unsigned serial) {
-    auto s = s_sensors.find(serial);
-    if (s == s_sensors.end())
+std::shared_ptr<Kromek::Sensor> Kromek::Driver::device(unsigned serial) {
+    auto s = s_devices.find(serial);
+    if (s == s_devices.end())
         return nullptr;
     else
         return s->second;
 }
 
-void Kromek::Driver::addSensor(unsigned id) {
-    removeSensor(id);
-    auto s = std::make_shared<Sensor>(id);
-    s_sensors.insert({s->serial(), s});
-}
-
-void Kromek::Driver::removeSensor(unsigned id) {
-    for (auto s = s_sensors.begin(); s != s_sensors.end(); ++s) {
-        if (s->second->id() == id) {
-            s_sensors.erase(s);
-            break;
+Kromek::Driver::Iterator Kromek::Driver::findDevice(unsigned id) {
+    for (auto i = s_devices.begin(); i != s_devices.end(); ++i) {
+        if (i->second->id() == id) {
+            return i;
         }
     }
+    return s_devices.end();
+}
+
+void Kromek::Driver::clearDevices() {
+    s_devices.clear();
+}
+
+void Kromek::Driver::addDevice(unsigned id) {
+    removeDevice(id);
+    auto s = std::make_shared<Sensor>(id);
+    s_devices.insert({s->serial(), s});
+}
+
+void Kromek::Driver::removeDevice(unsigned id) {
+    auto i = findDevice(id);
+    if (i != s_devices.end())
+        s_devices.erase(i);
 }
 
 //////////////////////////////////////////////////////////////
@@ -148,9 +174,9 @@ void Kromek::Driver::removeSensor(unsigned id) {
 
 void Kromek::Driver::deviceChangedCallback(unsigned id, BOOL added, void *caller) {  
     if (added)
-        addSensor(id);
+        addDevice(id);
     else
-        removeSensor(id);
+        removeDevice(id);
 }
     
 void Kromek::Driver::errorCallback(void *caller, unsigned id, int code, const char *message) {

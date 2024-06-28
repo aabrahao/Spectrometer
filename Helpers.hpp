@@ -9,4 +9,12 @@ inline std::ostream &err() { return std::cout; }
 
 std::string input(std::string_view prompt);
 
+template<typename O, typename V> 
+O &operator<<(O &o, const V &v) {
+    for (const auto &e : v)
+        o << e << " ";
+    o << std::endl;
+    return o;
+}
+
 #endif
