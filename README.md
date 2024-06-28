@@ -100,3 +100,70 @@ make
 ```bash
 cd output/linux64/release
 ```
+
+# Compiling ARC's Spectormeter
+
+My directory stucture
+
+```bash
+cd ~/Projects/Kromek
+.
+├── Documents     # PDFs
+├── Driver        # Kromek Driver 
+└── Spectrometer  # FIU's Spectrometer
+```
+
+Linking Kromek library 
+
+Set Kromek's directory driver path in CMakeLists.txt
+
+```bash
+cmake_minimum_required(VERSION 3.5)
+
+project (Spectrometer)
+
+###############################################
+# Set Kromek Driver directory
+
+set(DRIVER "~/Projects/Kromek/Driver")
+
+###############################################
+
+set(CMAKE_CXX_STANDARD 20)
+
+set(CMAKE_CXX_FLAGS "-pthread -Wno-enum-compare")
+
+include_directories(
+	${DRIVER}/KromekDriver
+	${DRIVER}/SpectrometerDriver
+)
+
+add_executable( ${PROJECT_NAME}
+	main.cpp
+	Kromek.hpp
+	Kromek.cpp
+	Helpers.hpp
+	Helpers.cpp
+)
+
+target_link_libraries( ${PROJECT_NAME}
+	${DRIVER}/output/linux64/release/libSpectrometerDriver.so
+)
+```
+
+Building Spectrometer
+
+```bash
+cd Spectrometer
+
+mkdir build
+cd build
+cmake ..
+make
+```
+
+Run application
+
+```bash
+./Spectrometer
+```
