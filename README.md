@@ -125,7 +125,7 @@ project (Spectrometer)
 ###############################################
 # Set Kromek Driver directory
 
-set(DRIVER "~/Projects/Kromek/Driver")
+set(DRIVER "~/Projects/Kromek/Driver") # <===
 
 ###############################################
 
