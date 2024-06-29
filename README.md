@@ -101,7 +101,7 @@ make
 cd output/linux64/release
 ```
 
-# Compiling ARC's Spectormeter
+# Compile ARC's Spectormeter
 
 My directory stucture
 
@@ -113,7 +113,7 @@ cd ~/Projects/Kromek
 └── Spectrometer  # FIU's Spectrometer
 ```
 
-Linking Kromek library 
+## Link Kromek library 
 
 Set Kromek's directory driver path in CMakeLists.txt
 
@@ -151,7 +151,7 @@ target_link_libraries( ${PROJECT_NAME}
 )
 ```
 
-Building Spectrometer
+## Build Spectrometer
 
 ```bash
 cd Spectrometer
@@ -162,7 +162,7 @@ cmake ..
 make
 ```
 
-Run application
+## Run application
 
 ```bash
 ./Spectrometer
